@@ -1,0 +1,13 @@
+[package]
+name = "pitch_quantizer"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", version = "0.0.0" }
+xtask = { git = "https://github.com/robbert-vdh/nih-plug.git", version = "0.1.0" }
+
+[workspace]
+members = ["xtask"]
