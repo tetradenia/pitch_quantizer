@@ -426,7 +426,6 @@ name = "pitch_quantizer"
 version = "0.1.0"
 dependencies = [
  "nih_plug",
- "xtask 0.1.0 (git+https://github.com/robbert-vdh/nih-plug.git)",
 ]
 
 [[package]]
@@ -880,14 +879,6 @@ dependencies = [
 [[package]]
 name = "xtask"
 version = "0.1.0"
-dependencies = [
- "nih_plug_xtask",
-]
-
-[[package]]
-name = "xtask"
-version = "0.1.0"
-source = "git+https://github.com/robbert-vdh/nih-plug.git#7a01b57735bb0cb18da048e4eb5b303b85b30c4d"
 dependencies = [
  "nih_plug_xtask",
 ]
