@@ -7,3 +7,9 @@ edition = "2021"
 
 [dependencies]
 nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", version = "0.0.0" }
+
+[workspace]
+members = ["xtask"]
+
+[lib]
+crate-type = ["cdylib"]
