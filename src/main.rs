@@ -1,4 +1,4 @@
-use nih_plug::{nih_export_vst3, prelude::{Plugin, AudioIOLayout, MidiConfig, PortNames}};
+use nih_plug::{nih_export_vst3, prelude::{Plugin, AudioIOLayout, MidiConfig, PortNames, Vst3Plugin, Vst3SubCategory}};
 use std::sync::Arc;
 use std::num::NonZeroU32;
 
@@ -95,6 +95,13 @@ impl Plugin for PitchQuantizer {
 
 fn main() {
     println!("Hello, world!");
+}
+
+impl Vst3Plugin for PitchQuantizer {
+    const VST3_CLASS_ID: [u8; 16] = *b"1000100010001000";
+    const VST3_SUBCATEGORIES: &'static [nih_plug::prelude::Vst3SubCategory] = &[
+        Vst3SubCategory::Fx
+    ];
 }
 
 nih_export_vst3!(PitchQuantizer);
