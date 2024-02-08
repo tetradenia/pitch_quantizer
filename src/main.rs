@@ -1,3 +1,100 @@
+use nih_plug::{nih_export_vst3, prelude::{Plugin, AudioIOLayout, MidiConfig, PortNames}};
+use std::sync::Arc;
+use std::num::NonZeroU32;
+
+#[derive(Default)]
+struct PitchQuantizer {
+}
+
+impl Plugin for PitchQuantizer {
+    // Metadata
+    const NAME: &'static str = "Pitch Quantizer";
+    const VENDOR: &'static str = "";
+    const URL: &'static str = "";
+    const EMAIL: &'static str = "";
+    const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
+    const AUDIO_IO_LAYOUTS: &'static [nih_plug::prelude::AudioIOLayout] = &[
+        AudioIOLayout {
+            // two input + output channels (stereo pair).
+            main_input_channels: NonZeroU32::new(2),
+            main_output_channels: NonZeroU32::new(2),
+            // no sidechain inputs.
+            aux_input_ports: &[],
+            aux_output_ports: &[],
+            // default port names.
+            names: PortNames::const_default(),
+        }
+    ];
+
+    // allows MIDI in, no MIDI out.
+    const MIDI_INPUT: nih_plug::prelude::MidiConfig = MidiConfig::None;
+    const MIDI_OUTPUT: MidiConfig = MidiConfig::None;
+
+    // smaller buffers for automation.
+    const SAMPLE_ACCURATE_AUTOMATION: bool = true;
+    // can be run offline.
+    const HARD_REALTIME_ONLY: bool = false;
+
+    // does not use SysEx messages.
+    type SysExMessage = ();
+
+    // does not have background processing.
+    type BackgroundTask = ();
+
+    // called when plugin is created.
+    fn task_executor(&mut self) -> nih_plug::prelude::TaskExecutor<Self> {
+        // In the default implementation we can simply ignore the value
+        Box::new(|_| ())
+    }
+
+    // plugin parameters. called after a plugin is instantiated.
+    fn params(&self) -> Arc<dyn nih_plug::prelude::Params> {
+        todo!()
+    }
+
+    // loads the plugin UI editor.
+    fn editor(&mut self, async_executor: nih_plug::prelude::AsyncExecutor<Self>) -> Option<Box<dyn nih_plug::prelude::Editor>> {
+        None
+    }
+
+    // called just before a PluginState object is loaded, allowing for preset compatibility.
+    fn filter_state(state: &mut nih_plug::prelude::PluginState) {}
+
+    // initialize the plugin.
+    // do expensive initialization here.
+    // reset() called immediately afterwards.
+    fn initialize(
+        &mut self,
+        audio_io_layout: &AudioIOLayout,
+        buffer_config: &nih_plug::prelude::BufferConfig,
+        context: &mut impl nih_plug::prelude::InitContext<Self>,
+    ) -> bool {
+        true
+    }
+
+    // clear internal state.
+    // do not alloc here.
+    // host always calls before resuming audio processing.
+    fn reset(&mut self) {}
+
+    // do audio processing.
+    fn process(
+        &mut self,
+        buffer: &mut nih_plug::prelude::Buffer,
+        aux: &mut nih_plug::prelude::AuxiliaryBuffers,
+        context: &mut impl nih_plug::prelude::ProcessContext<Self>,
+    ) -> nih_plug::prelude::ProcessStatus {
+        todo!()
+    }
+
+    // dealloc + clean up resources here.
+    // not 1-to-1 to activate()
+    fn deactivate(&mut self) {}
+}
+
 fn main() {
     println!("Hello, world!");
 }
+
+nih_export_vst3!(PitchQuantizer);
