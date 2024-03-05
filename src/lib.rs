@@ -1,6 +1,5 @@
 use helpers::{bucket_to_freq, closest_bucket_to_freq, amplitude_from_complex, lazy_upward_round};
 use nih_plug::prelude::*;
-use nih_plug::util::window::hann_in_place;
 use realfft::{RealFftPlanner, RealToComplex, ComplexToReal, num_complex::Complex32};
 use std::sync::Arc;
 use std::num::NonZeroU32;
@@ -82,7 +81,7 @@ impl Plugin for PitchQuantizer {
     ];
 
     // allows MIDI in, no MIDI out.
-    const MIDI_INPUT: nih_plug::prelude::MidiConfig = MidiConfig::None;
+    const MIDI_INPUT: nih_plug::prelude::MidiConfig = MidiConfig::Basic;
     const MIDI_OUTPUT: MidiConfig = MidiConfig::None;
 
     // smaller buffers for automation.

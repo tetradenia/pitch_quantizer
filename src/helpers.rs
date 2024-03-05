@@ -15,5 +15,5 @@ pub fn lazy_upward_round(freq: f32, round_to: &[f32]) -> f32 {
     for threshold in round_to {
         if freq < *threshold { return *threshold }
     }
-    freq
+    0f32
 }
