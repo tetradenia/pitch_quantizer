@@ -80,12 +80,6 @@ impl Plugin for PitchQuantizer {
         buffer_config: &nih_plug::prelude::BufferConfig,
         context: &mut impl nih_plug::prelude::InitContext<Self>,
     ) -> bool {
-        // Initialize planner for FFT algorithm.
-        let mut planner = RealFftPlanner::<f64>::new();
-        let r2c = planner.plan_fft_forward(WINDOW_SIZE);
-        let c2r = planner.plan_fft_inverse(WINDOW_SIZE);
-        let mut real_buf = r2c.make_input_vec();
-        let mut complex_buf = r2c.make_output_vec();
         true
     }
 
@@ -108,10 +102,6 @@ impl Plugin for PitchQuantizer {
     // dealloc + clean up resources here.
     // not 1-to-1 to activate()
     fn deactivate(&mut self) {}
-}
-
-fn main() {
-    println!("Hello, world!");
 }
 
 impl Vst3Plugin for PitchQuantizer {
