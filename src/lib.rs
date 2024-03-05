@@ -1,17 +1,37 @@
-use nih_plug::{nih_export_vst3, prelude::{Plugin, AudioIOLayout, MidiConfig, PortNames, Vst3Plugin, Vst3SubCategory, ProcessStatus}};
-use realfft::RealFftPlanner;
+use helpers::bucket_to_freq;
+use nih_plug::{nih_export_vst3, prelude::{Plugin, AudioIOLayout, MidiConfig, PortNames, Vst3Plugin, Vst3SubCategory, ProcessStatus}, util};
+use realfft::{RealFftPlanner, RealToComplex, ComplexToReal, num_complex::Complex32};
 use std::sync::Arc;
 use std::num::NonZeroU32;
 
-const WINDOW_SIZE : usize = 2048;
+mod helpers;
+
+const WINDOW_SIZE : usize = 1024;
 const GAIN_COMPENSATION: f32 = 1.0 / WINDOW_SIZE as f32;
 
 struct PitchQuantizer {
+    stft: util::StftHelper,
+    r2c_plan: Arc<dyn RealToComplex<f32>>,
+    c2r_plan: Arc<dyn ComplexToReal<f32>>,
+    complex_fft_buffer: Vec<Complex32>,
+    
+    bucket_freq: Vec<f32>
 }
 
 impl Default for PitchQuantizer {
     fn default() -> Self {
+        let mut planner = RealFftPlanner::new();
+        let r2c_plan = planner.plan_fft_forward(WINDOW_SIZE);
+        let c2r_plan = planner.plan_fft_inverse(WINDOW_SIZE);
+        let mut real_fft_buffer = r2c_plan.make_input_vec();
+        let mut complex_fft_buffer = r2c_plan.make_output_vec();
+
         Self {
+            stft: util::StftHelper::new(2, WINDOW_SIZE, 0),
+            r2c_plan,
+            c2r_plan,
+            complex_fft_buffer,
+            bucket_freq: (0..WINDOW_SIZE).map(|_| {0f32}).collect()
         }
     }
 }
@@ -80,6 +100,9 @@ impl Plugin for PitchQuantizer {
         buffer_config: &nih_plug::prelude::BufferConfig,
         context: &mut impl nih_plug::prelude::InitContext<Self>,
     ) -> bool {
+        self.bucket_freq = (0..WINDOW_SIZE)
+            .map(|k| { bucket_to_freq(k as i32, buffer_config.sample_rate as i32, WINDOW_SIZE as i32) })
+            .collect();
         true
     }
 
@@ -96,6 +119,13 @@ impl Plugin for PitchQuantizer {
         aux: &mut nih_plug::prelude::AuxiliaryBuffers,
         context: &mut impl nih_plug::prelude::ProcessContext<Self>,
     ) -> nih_plug::prelude::ProcessStatus {
+        self.stft.process_overlap_add(buffer, 1, |_channel_idx, real_fft_buffer| {
+            // fft from time domain to complex domain.
+            self.r2c_plan.process_with_scratch(real_fft_buffer, &mut self.complex_fft_buffer, &mut []).unwrap();
+
+            // inverse fft from complex freq to time.
+            self.c2r_plan.process_with_scratch(&mut self.complex_fft_buffer, real_fft_buffer, &mut []).unwrap();
+        });
         ProcessStatus::Normal
     }
 
