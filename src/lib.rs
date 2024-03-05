@@ -1,5 +1,6 @@
 use helpers::{bucket_to_freq, closest_bucket_to_freq, amplitude_from_complex};
-use nih_plug::{nih_export_vst3, prelude::{Plugin, AudioIOLayout, MidiConfig, PortNames, Vst3Plugin, Vst3SubCategory, ProcessStatus}, util};
+// use nih_plug::{nih_export_vst3, prelude::{Plugin, AudioIOLayout, MidiConfig, PortNames, Vst3Plugin, Vst3SubCategory, ProcessStatus}, util};
+use nih_plug::prelude::*;
 use realfft::{RealFftPlanner, RealToComplex, ComplexToReal, num_complex::Complex32};
 use std::sync::Arc;
 use std::num::NonZeroU32;
@@ -10,6 +11,8 @@ const WINDOW_SIZE : usize = 1024;
 const GAIN_COMPENSATION: f32 = 1.0 / WINDOW_SIZE as f32;
 
 struct PitchQuantizer {
+    params: Arc<PitchQuantizerParams>,
+
     stft: util::StftHelper,
     r2c_plan: Arc<dyn RealToComplex<f32>>,
     c2r_plan: Arc<dyn ComplexToReal<f32>>,
@@ -17,6 +20,16 @@ struct PitchQuantizer {
     process_fft_buffer: Vec<Complex32>,
     
     bucket_freq: Vec<f32>
+}
+
+#[derive(Params)]
+struct PitchQuantizerParams{}
+
+#[allow(clippy::derivable_impls)]
+impl Default for PitchQuantizerParams {
+    fn default() -> Self {
+        Self {}
+    }
 }
 
 impl Default for PitchQuantizer {
@@ -29,6 +42,7 @@ impl Default for PitchQuantizer {
         let mut process_fft_buffer = r2c_plan.make_output_vec();
 
         Self {
+            params: Arc::new(PitchQuantizerParams::default()),
             stft: util::StftHelper::new(2, WINDOW_SIZE, 0),
             r2c_plan,
             c2r_plan,
@@ -42,9 +56,9 @@ impl Default for PitchQuantizer {
 impl Plugin for PitchQuantizer {
     // Metadata
     const NAME: &'static str = "Pitch Quantizer";
-    const VENDOR: &'static str = "";
-    const URL: &'static str = "";
-    const EMAIL: &'static str = "";
+    const VENDOR: &'static str = "VENDCO";
+    const URL: &'static str = "URL";
+    const EMAIL: &'static str = "EMAIL";
     const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
     const AUDIO_IO_LAYOUTS: &'static [nih_plug::prelude::AudioIOLayout] = &[
@@ -83,7 +97,7 @@ impl Plugin for PitchQuantizer {
 
     // plugin parameters. called after a plugin is instantiated.
     fn params(&self) -> Arc<dyn nih_plug::prelude::Params> {
-        todo!()
+        self.params.clone()
     }
 
     // loads the plugin UI editor.
