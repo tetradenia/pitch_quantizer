@@ -1,5 +1,4 @@
 use helpers::{bucket_to_freq, closest_bucket_to_freq, amplitude_from_complex};
-// use nih_plug::{nih_export_vst3, prelude::{Plugin, AudioIOLayout, MidiConfig, PortNames, Vst3Plugin, Vst3SubCategory, ProcessStatus}, util};
 use nih_plug::prelude::*;
 use realfft::{RealFftPlanner, RealToComplex, ComplexToReal, num_complex::Complex32};
 use std::sync::Arc;
