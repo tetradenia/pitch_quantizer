@@ -15,7 +15,6 @@ mod helpers;
 
 const WINDOW_SIZE: usize = 4096;
 const GAIN_COMPENSATION: f32 = 1.0 / WINDOW_SIZE as f32;
-const STRENGTH: f32 = 0.5;
 
 struct PitchQuantizer {
     params: Arc<PitchQuantizerParams>,
@@ -45,9 +44,9 @@ impl Default for PitchQuantizer {
         let mut planner = RealFftPlanner::new();
         let r2c_plan = planner.plan_fft_forward(WINDOW_SIZE);
         let c2r_plan = planner.plan_fft_inverse(WINDOW_SIZE);
-        let mut real_fft_buffer = r2c_plan.make_input_vec();
-        let mut convert_fft_buffer = r2c_plan.make_output_vec();
-        let mut process_fft_buffer = r2c_plan.make_output_vec();
+        let mut _real_fft_buffer = r2c_plan.make_input_vec();
+        let convert_fft_buffer = r2c_plan.make_output_vec();
+        let process_fft_buffer = r2c_plan.make_output_vec();
 
         Self {
             params: Arc::new(PitchQuantizerParams::default()),
@@ -110,21 +109,21 @@ impl Plugin for PitchQuantizer {
     }
 
     // loads the plugin UI editor.
-    fn editor(&mut self, async_executor: nih_plug::prelude::AsyncExecutor<Self>) -> Option<Box<dyn nih_plug::prelude::Editor>> {
+    fn editor(&mut self, _async_executor: nih_plug::prelude::AsyncExecutor<Self>) -> Option<Box<dyn nih_plug::prelude::Editor>> {
         None
     }
 
     // called just before a PluginState object is loaded, allowing for preset compatibility.
-    fn filter_state(state: &mut nih_plug::prelude::PluginState) {}
+    fn filter_state(_state: &mut nih_plug::prelude::PluginState) {}
 
     // initialize the plugin.
     // do expensive initialization here.
     // reset() called immediately afterwards.
     fn initialize(
         &mut self,
-        audio_io_layout: &AudioIOLayout,
+        _audio_io_layout: &AudioIOLayout,
         buffer_config: &nih_plug::prelude::BufferConfig,
-        context: &mut impl nih_plug::prelude::InitContext<Self>,
+        _context: &mut impl nih_plug::prelude::InitContext<Self>,
     ) -> bool {
         self.bucket_freq = (0..WINDOW_SIZE)
             .map(|k| { bucket_to_freq(k as i32, buffer_config.sample_rate, WINDOW_SIZE) })
@@ -142,7 +141,7 @@ impl Plugin for PitchQuantizer {
     fn process(
         &mut self,
         buffer: &mut nih_plug::prelude::Buffer,
-        aux: &mut nih_plug::prelude::AuxiliaryBuffers,
+        _aux: &mut nih_plug::prelude::AuxiliaryBuffers,
         context: &mut impl nih_plug::prelude::ProcessContext<Self>,
     ) -> nih_plug::prelude::ProcessStatus {
         // midi processing
