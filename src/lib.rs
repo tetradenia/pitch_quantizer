@@ -1,4 +1,4 @@
-use helpers::bucket_to_freq;
+use helpers::{bucket_to_freq, closest_bucket_to_freq, amplitude_from_complex};
 use nih_plug::{nih_export_vst3, prelude::{Plugin, AudioIOLayout, MidiConfig, PortNames, Vst3Plugin, Vst3SubCategory, ProcessStatus}, util};
 use realfft::{RealFftPlanner, RealToComplex, ComplexToReal, num_complex::Complex32};
 use std::sync::Arc;
@@ -13,7 +13,8 @@ struct PitchQuantizer {
     stft: util::StftHelper,
     r2c_plan: Arc<dyn RealToComplex<f32>>,
     c2r_plan: Arc<dyn ComplexToReal<f32>>,
-    complex_fft_buffer: Vec<Complex32>,
+    convert_fft_buffer: Vec<Complex32>,
+    process_fft_buffer: Vec<Complex32>,
     
     bucket_freq: Vec<f32>
 }
@@ -24,13 +25,15 @@ impl Default for PitchQuantizer {
         let r2c_plan = planner.plan_fft_forward(WINDOW_SIZE);
         let c2r_plan = planner.plan_fft_inverse(WINDOW_SIZE);
         let mut real_fft_buffer = r2c_plan.make_input_vec();
-        let mut complex_fft_buffer = r2c_plan.make_output_vec();
+        let mut convert_fft_buffer = r2c_plan.make_output_vec();
+        let mut process_fft_buffer = r2c_plan.make_output_vec();
 
         Self {
             stft: util::StftHelper::new(2, WINDOW_SIZE, 0),
             r2c_plan,
             c2r_plan,
-            complex_fft_buffer,
+            convert_fft_buffer,
+            process_fft_buffer,
             bucket_freq: (0..WINDOW_SIZE).map(|_| {0f32}).collect()
         }
     }
@@ -101,7 +104,7 @@ impl Plugin for PitchQuantizer {
         context: &mut impl nih_plug::prelude::InitContext<Self>,
     ) -> bool {
         self.bucket_freq = (0..WINDOW_SIZE)
-            .map(|k| { bucket_to_freq(k as i32, buffer_config.sample_rate as i32, WINDOW_SIZE as i32) })
+            .map(|k| { bucket_to_freq(k as i32, buffer_config.sample_rate, WINDOW_SIZE) })
             .collect();
         true
     }
@@ -121,10 +124,25 @@ impl Plugin for PitchQuantizer {
     ) -> nih_plug::prelude::ProcessStatus {
         self.stft.process_overlap_add(buffer, 1, |_channel_idx, real_fft_buffer| {
             // fft from time domain to complex domain.
-            self.r2c_plan.process_with_scratch(real_fft_buffer, &mut self.complex_fft_buffer, &mut []).unwrap();
+            self.r2c_plan.process_with_scratch(real_fft_buffer, &mut self.convert_fft_buffer, &mut []).unwrap();
+
+            for fft_bin in self.process_fft_buffer.iter_mut() {
+                fft_bin.re = 0f32;
+                fft_bin.im = 0f32;
+            }
+
+            for (idx, fft_bin) in self.convert_fft_buffer.iter_mut().enumerate() {
+                let re: f32 = fft_bin.re;
+                let im: f32 = fft_bin.im;
+
+                let frequency = bucket_to_freq(idx as i32, context.transport().sample_rate, WINDOW_SIZE);
+                let bucket: i32 = closest_bucket_to_freq(440.0, context.transport().sample_rate, WINDOW_SIZE);
+                let amp = amplitude_from_complex(re, im);
+                self.process_fft_buffer[bucket as usize].re += amp * GAIN_COMPENSATION;
+            }
 
             // inverse fft from complex freq to time.
-            self.c2r_plan.process_with_scratch(&mut self.complex_fft_buffer, real_fft_buffer, &mut []).unwrap();
+            self.c2r_plan.process_with_scratch(&mut self.process_fft_buffer, real_fft_buffer, &mut []).unwrap();
         });
         ProcessStatus::Normal
     }
