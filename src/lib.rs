@@ -1,9 +1,19 @@
-use nih_plug::{nih_export_vst3, prelude::{Plugin, AudioIOLayout, MidiConfig, PortNames, Vst3Plugin, Vst3SubCategory}};
+use nih_plug::{nih_export_vst3, prelude::{Plugin, AudioIOLayout, MidiConfig, PortNames, Vst3Plugin, Vst3SubCategory, ProcessStatus}};
+use realfft::RealFftPlanner;
 use std::sync::Arc;
 use std::num::NonZeroU32;
 
-#[derive(Default)]
+const WINDOW_SIZE : usize = 2048;
+const GAIN_COMPENSATION: f32 = 1.0 / WINDOW_SIZE as f32;
+
 struct PitchQuantizer {
+}
+
+impl Default for PitchQuantizer {
+    fn default() -> Self {
+        Self {
+        }
+    }
 }
 
 impl Plugin for PitchQuantizer {
@@ -70,13 +80,20 @@ impl Plugin for PitchQuantizer {
         buffer_config: &nih_plug::prelude::BufferConfig,
         context: &mut impl nih_plug::prelude::InitContext<Self>,
     ) -> bool {
+        // Initialize planner for FFT algorithm.
+        let mut planner = RealFftPlanner::<f64>::new();
+        let r2c = planner.plan_fft_forward(WINDOW_SIZE);
+        let c2r = planner.plan_fft_inverse(WINDOW_SIZE);
+        let mut real_buf = r2c.make_input_vec();
+        let mut complex_buf = r2c.make_output_vec();
         true
     }
 
     // clear internal state.
     // do not alloc here.
     // host always calls before resuming audio processing.
-    fn reset(&mut self) {}
+    fn reset(&mut self) {
+    }
 
     // do audio processing.
     fn process(
@@ -85,7 +102,7 @@ impl Plugin for PitchQuantizer {
         aux: &mut nih_plug::prelude::AuxiliaryBuffers,
         context: &mut impl nih_plug::prelude::ProcessContext<Self>,
     ) -> nih_plug::prelude::ProcessStatus {
-        todo!()
+        ProcessStatus::Normal
     }
 
     // dealloc + clean up resources here.
