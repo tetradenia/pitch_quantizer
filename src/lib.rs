@@ -1,13 +1,21 @@
-use helpers::{bucket_to_freq, closest_bucket_to_freq, amplitude_from_complex};
+use helpers::{bucket_to_freq, closest_bucket_to_freq, amplitude_from_complex, lazy_upward_round};
 use nih_plug::prelude::*;
+use nih_plug::util::window::hann_in_place;
 use realfft::{RealFftPlanner, RealToComplex, ComplexToReal, num_complex::Complex32};
 use std::sync::Arc;
 use std::num::NonZeroU32;
 
 mod helpers;
 
-const WINDOW_SIZE : usize = 1024;
+/*
+ * Note: some of the skeleton of this project was based on the stft example plugin in the nih-plug
+ * library. (https://github.com/robbert-vdh/nih-plug/blob/master/plugins/examples/stft/src/lib.rs)
+ * However, besides this, all other bits of code were written by myself.
+ */
+
+const WINDOW_SIZE: usize = 4096;
 const GAIN_COMPENSATION: f32 = 1.0 / WINDOW_SIZE as f32;
+const STRENGTH: f32 = 0.5;
 
 struct PitchQuantizer {
     params: Arc<PitchQuantizerParams>,
@@ -149,10 +157,15 @@ impl Plugin for PitchQuantizer {
                 let im: f32 = fft_bin.im;
 
                 let frequency = bucket_to_freq(idx as i32, context.transport().sample_rate, WINDOW_SIZE);
-                let bucket: i32 = closest_bucket_to_freq(440.0, context.transport().sample_rate, WINDOW_SIZE);
+
+                let round_freq = lazy_upward_round(frequency, &[110f32, 220f32, 261.63, 329.63, 440f32, 523.25, 659.25, 783.99, 880f32, 1046.5, 1318.51, 1567.98, 1760f32, 2093f32, 2637f32, 3135.96]);
+                let bucket: i32 = closest_bucket_to_freq(round_freq, context.transport().sample_rate, WINDOW_SIZE);
                 let amp = amplitude_from_complex(re, im);
                 self.process_fft_buffer[bucket as usize].re += amp * GAIN_COMPENSATION;
             }
+
+            self.process_fft_buffer[0].re = 0f32;
+            self.process_fft_buffer[0].im = 0f32;
 
             // inverse fft from complex freq to time.
             self.c2r_plan.process_with_scratch(&mut self.process_fft_buffer, real_fft_buffer, &mut []).unwrap();

@@ -10,3 +10,10 @@ pub fn closest_bucket_to_freq(freq: f32, sample_rate: f32, window_size: usize) -
     let freq_per_bin = sample_rate / window_size as f32;
     (freq / freq_per_bin).round() as i32
 }
+
+pub fn lazy_upward_round(freq: f32, round_to: &[f32]) -> f32 {
+    for threshold in round_to {
+        if freq < *threshold { return *threshold }
+    }
+    freq
+}
