@@ -1,5 +1,6 @@
 use helpers::{bucket_to_freq, closest_bucket_to_freq, amplitude_from_complex, lazy_upward_round};
 use nih_plug::prelude::*;
+use nih_plug::util::midi_note_to_freq;
 use realfft::{RealFftPlanner, RealToComplex, ComplexToReal, num_complex::Complex32};
 use std::sync::Arc;
 use std::num::NonZeroU32;
@@ -25,7 +26,8 @@ struct PitchQuantizer {
     convert_fft_buffer: Vec<Complex32>,
     process_fft_buffer: Vec<Complex32>,
     
-    bucket_freq: Vec<f32>
+    bucket_freq: Vec<f32>,
+    note_on: Vec<bool>
 }
 
 #[derive(Params)]
@@ -54,7 +56,8 @@ impl Default for PitchQuantizer {
             c2r_plan,
             convert_fft_buffer,
             process_fft_buffer,
-            bucket_freq: (0..WINDOW_SIZE).map(|_| {0f32}).collect()
+            bucket_freq: (0..WINDOW_SIZE).map(|_| {0f32}).collect(),
+            note_on: (0..128).map(|_| {false}).collect()
         }
     }
 }
@@ -142,10 +145,34 @@ impl Plugin for PitchQuantizer {
         aux: &mut nih_plug::prelude::AuxiliaryBuffers,
         context: &mut impl nih_plug::prelude::ProcessContext<Self>,
     ) -> nih_plug::prelude::ProcessStatus {
+        // midi processing
+        let mut next_event = context.next_event();
+        while let Some(event) = next_event {
+            match event {
+                NoteEvent::NoteOn { note, velocity, .. } => {
+                    if velocity == 0f32 { self.note_on[note as usize] = false; }
+                    else { self.note_on[note as usize] = true; }
+                },
+                NoteEvent::NoteOff { note, .. } => {
+                    self.note_on[note as usize] = false;
+                },
+                _ => ()
+            }
+            next_event = context.next_event();
+        }
+
+        // get the frequencies of the input midi.
+        let mut to_round: Vec<f32> = vec![];
+        for (idx, on) in self.note_on.iter().enumerate() {
+            if *on { to_round.push(midi_note_to_freq(idx as u8)); }
+        }
+
+        // audio processing
         self.stft.process_overlap_add(buffer, 1, |_channel_idx, real_fft_buffer| {
             // fft from time domain to complex domain.
             self.r2c_plan.process_with_scratch(real_fft_buffer, &mut self.convert_fft_buffer, &mut []).unwrap();
 
+            // clear the working buffer.
             for fft_bin in self.process_fft_buffer.iter_mut() {
                 fft_bin.re = 0f32;
                 fft_bin.im = 0f32;
@@ -155,14 +182,19 @@ impl Plugin for PitchQuantizer {
                 let re: f32 = fft_bin.re;
                 let im: f32 = fft_bin.im;
 
+                // get the center frequency of a bucket.
                 let frequency = bucket_to_freq(idx as i32, context.transport().sample_rate, WINDOW_SIZE);
 
-                let round_freq = lazy_upward_round(frequency, &[110f32, 220f32, 261.63, 329.63, 440f32, 523.25, 659.25, 783.99, 880f32, 1046.5, 1318.51, 1567.98, 1760f32, 2093f32, 2637f32, 3135.96]);
+                let round_freq = lazy_upward_round(frequency, &to_round);
                 let bucket: i32 = closest_bucket_to_freq(round_freq, context.transport().sample_rate, WINDOW_SIZE);
+
+                // get the amplitude at a center frequency
                 let amp = amplitude_from_complex(re, im);
+                // move gain compensated amplitude to bucket in working buffer.
                 self.process_fft_buffer[bucket as usize].re += amp * GAIN_COMPENSATION;
             }
 
+            // clear the DC bucket to get rid of subharmonics.
             self.process_fft_buffer[0].re = 0f32;
             self.process_fft_buffer[0].im = 0f32;
 

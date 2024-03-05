@@ -11,7 +11,7 @@ pub fn closest_bucket_to_freq(freq: f32, sample_rate: f32, window_size: usize) -
     (freq / freq_per_bin).round() as i32
 }
 
-pub fn lazy_upward_round(freq: f32, round_to: &[f32]) -> f32 {
+pub fn lazy_upward_round(freq: f32, round_to: &Vec<f32>) -> f32 {
     for threshold in round_to {
         if freq < *threshold { return *threshold }
     }
