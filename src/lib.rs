@@ -159,11 +159,12 @@ impl Plugin for PitchQuantizer {
         &mut self,
         _audio_io_layout: &AudioIOLayout,
         buffer_config: &nih_plug::prelude::BufferConfig,
-        _context: &mut impl nih_plug::prelude::InitContext<Self>,
+        context: &mut impl nih_plug::prelude::InitContext<Self>,
     ) -> bool {
         self.bucket_freq = (0..WINDOW_SIZE)
             .map(|k| { bucket_to_freq(k as i32, buffer_config.sample_rate, WINDOW_SIZE) })
             .collect();
+        context.set_latency_samples(self.stft.latency_samples());
         true
     }
 
