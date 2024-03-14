@@ -249,8 +249,8 @@ impl Plugin for PitchQuantizer {
                 let im: f32 = fft_bin.im;
 
                 // move gain compensated amplitude to bucket in working buffer.
-                self.process_fft_buffer[idx as usize].re = re * note_spread_sum[idx as usize];
-                self.process_fft_buffer[idx as usize].im = im * note_spread_sum[idx as usize];
+                self.process_fft_buffer[idx as usize].re = re * note_spread_sum[idx as usize] * GAIN_COMPENSATION;
+                self.process_fft_buffer[idx as usize].im = im * note_spread_sum[idx as usize] * GAIN_COMPENSATION;
             }
 
             // clear the DC bucket to get rid of subharmonics.
