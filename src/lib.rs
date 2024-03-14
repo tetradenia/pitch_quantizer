@@ -1,12 +1,12 @@
-use helpers::{bucket_to_freq, closest_bucket_to_freq, amplitude_from_complex, lazy_upward_round, bucket_spread};
+use helpers::{bucket_to_freq, closest_bucket_to_freq, bucket_spread};
 use nih_plug::prelude::*;
 use nih_plug::util::midi_note_to_freq;
-use nih_plug::util::window::hann_in_place;
 use realfft::{RealFftPlanner, RealToComplex, ComplexToReal, num_complex::Complex32};
 use std::sync::Arc;
 use std::num::NonZeroU32;
 
 mod helpers;
+mod editor;
 
 /*
  * Note: some of the skeleton of this project was based on the stft example plugin in the nih-plug

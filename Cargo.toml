@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 egui = "0.26.2"
+egui-baseview = "0.0.0"
 nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", version = "0.0.0" }
 realfft = "3.3.0"
 

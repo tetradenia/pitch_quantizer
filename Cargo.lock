@@ -226,6 +226,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "egui-baseview"
+version = "0.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "268dcf2caea92477697921bd7aa3e0f481cd7653f778bdcfc6d8cf2469c3fdb0"
+
+[[package]]
 name = "emath"
 version = "0.26.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -533,6 +539,7 @@ name = "pitch_quantizer"
 version = "0.1.0"
 dependencies = [
  "egui",
+ "egui-baseview",
  "nih_plug",
  "realfft",
 ]
