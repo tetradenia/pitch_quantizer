@@ -36,7 +36,9 @@ struct PitchQuantizerParams {
     #[id = "note_spread"]
     note_spread: FloatParam,
     #[id = "spread_falloff"]
-    spread_falloff: FloatParam
+    spread_falloff: FloatParam,
+    #[id = "use_exact"]
+    use_exact: BoolParam
 }
 
 impl Default for PitchQuantizerParams {
@@ -62,7 +64,12 @@ impl Default for PitchQuantizerParams {
                         max: 0.999
                     }
                 )
-                .with_smoother(SmoothingStyle::Linear(1f32))
+                .with_smoother(SmoothingStyle::Linear(1f32)),
+            use_exact:
+                BoolParam::new(
+                    "Use Exact MIDI",
+                    true
+                )
         }
     }
 }
@@ -191,11 +198,32 @@ impl Plugin for PitchQuantizer {
 
         // get the frequencies of the input midi.
         let mut note_spread_sum: Vec<f32> = (0..WINDOW_SIZE).map(|_| {0f32}).collect();
+        let mut seen_letter_note: Vec<bool> = (0..12).map(|_| {false}).collect();
         for (idx, on) in self.note_on.iter().enumerate() {
             if *on {
-                let midi_bucket = closest_bucket_to_freq(midi_note_to_freq(idx as u8), context.transport().sample_rate, WINDOW_SIZE);
-                for (idx2, spread) in bucket_spread(midi_bucket, self.params.note_spread.value(), WINDOW_SIZE as i32, self.params.spread_falloff.value()).iter().enumerate() {
-                    note_spread_sum[idx2] += spread;
+                if self.params.use_exact.value() {
+                    // use exact midi
+                    let midi_bucket = closest_bucket_to_freq(midi_note_to_freq(idx as u8), context.transport().sample_rate, WINDOW_SIZE);
+                    for (idx2, spread) in bucket_spread(midi_bucket, self.params.note_spread.value(), WINDOW_SIZE as i32, self.params.spread_falloff.value()).iter().enumerate() {
+                        note_spread_sum[idx2] += spread;
+                        note_spread_sum[idx2] = note_spread_sum[idx2].min(1f32);
+                    }
+                } else {
+                    // clone across octaves
+                    let note_idx = (idx-21) % 12; // 0th note is A, 11th note is G#
+                    if !seen_letter_note[note_idx] {
+                        seen_letter_note[note_idx] = true;
+                        let fundamental = midi_note_to_freq((note_idx + 21) as u8);
+                        let mut harmonic = fundamental;
+                        while harmonic <= 20000f32 {
+                            let harmonic_bucket = closest_bucket_to_freq(harmonic, context.transport().sample_rate, WINDOW_SIZE);
+                            for (idx2, spread) in bucket_spread(harmonic_bucket, self.params.note_spread.value(), WINDOW_SIZE as i32, self.params.spread_falloff.value()).iter().enumerate() {
+                                note_spread_sum[idx2] += spread;
+                                note_spread_sum[idx2] = note_spread_sum[idx2].min(1f32);
+                            }
+                            harmonic += fundamental;
+                        }
+                    }
                 }
             }
         }
