@@ -207,7 +207,6 @@ impl Plugin for PitchQuantizer {
                     let midi_bucket = closest_bucket_to_freq(midi_note_to_freq(idx as u8), context.transport().sample_rate, WINDOW_SIZE);
                     for (idx2, spread) in bucket_spread(midi_bucket, self.params.note_spread.value(), WINDOW_SIZE as i32, self.params.spread_falloff.value()).iter().enumerate() {
                         note_spread_sum[idx2] += spread;
-                        note_spread_sum[idx2] = note_spread_sum[idx2].min(1f32);
                     }
                 } else {
                     // clone across octaves
@@ -220,7 +219,6 @@ impl Plugin for PitchQuantizer {
                             let harmonic_bucket = closest_bucket_to_freq(harmonic, context.transport().sample_rate, WINDOW_SIZE);
                             for (idx2, spread) in bucket_spread(harmonic_bucket, self.params.note_spread.value(), WINDOW_SIZE as i32, self.params.spread_falloff.value()).iter().enumerate() {
                                 note_spread_sum[idx2] += spread;
-                                note_spread_sum[idx2] = note_spread_sum[idx2].min(1f32);
                             }
                             harmonic += fundamental;
                         }
@@ -249,8 +247,9 @@ impl Plugin for PitchQuantizer {
                 let im: f32 = fft_bin.im;
 
                 // move gain compensated amplitude to bucket in working buffer.
-                self.process_fft_buffer[idx as usize].re = re * note_spread_sum[idx as usize] * GAIN_COMPENSATION;
-                self.process_fft_buffer[idx as usize].im = im * note_spread_sum[idx as usize] * GAIN_COMPENSATION;
+                let bucket_shift = (note_spread_sum[(idx+1).min(note_spread_sum.len() - 1)] - note_spread_sum[idx]).floor() as isize;
+                self.process_fft_buffer[(bucket_shift + idx as isize).min(WINDOW_SIZE as isize - 1).max(0) as usize].re += re * note_spread_sum[idx as usize] * GAIN_COMPENSATION;
+                self.process_fft_buffer[(bucket_shift + idx as isize).min(WINDOW_SIZE as isize - 1).max(0) as usize].im += im * note_spread_sum[idx as usize] * GAIN_COMPENSATION;
             }
 
             // clear the DC bucket to get rid of subharmonics.
