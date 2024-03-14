@@ -1,6 +1,7 @@
-use helpers::{bucket_to_freq, closest_bucket_to_freq, amplitude_from_complex, lazy_upward_round};
+use helpers::{bucket_to_freq, closest_bucket_to_freq, amplitude_from_complex, lazy_upward_round, bucket_spread};
 use nih_plug::prelude::*;
 use nih_plug::util::midi_note_to_freq;
+use nih_plug::util::window::hann_in_place;
 use realfft::{RealFftPlanner, RealToComplex, ComplexToReal, num_complex::Complex32};
 use std::sync::Arc;
 use std::num::NonZeroU32;
@@ -13,7 +14,7 @@ mod helpers;
  * However, besides this, all other bits of code were written by myself.
  */
 
-const WINDOW_SIZE: usize = 4096;
+const WINDOW_SIZE: usize = 8192;
 const GAIN_COMPENSATION: f32 = 1.0 / WINDOW_SIZE as f32;
 
 struct PitchQuantizer {
@@ -24,18 +25,45 @@ struct PitchQuantizer {
     c2r_plan: Arc<dyn ComplexToReal<f32>>,
     convert_fft_buffer: Vec<Complex32>,
     process_fft_buffer: Vec<Complex32>,
+    window: Vec<f32>,
     
     bucket_freq: Vec<f32>,
     note_on: Vec<bool>
 }
 
 #[derive(Params)]
-struct PitchQuantizerParams{}
+struct PitchQuantizerParams {
+    #[id = "note_spread"]
+    note_spread: FloatParam,
+    #[id = "spread_falloff"]
+    spread_falloff: FloatParam
+}
 
-#[allow(clippy::derivable_impls)]
 impl Default for PitchQuantizerParams {
     fn default() -> Self {
-        Self {}
+        Self {
+            note_spread:
+                FloatParam::new(
+                    "Note Spread Degree",
+                    1.0,
+                    FloatRange::Linear {
+                        min: 0.0,
+                        max: 1.0
+                    }
+                )
+                .with_smoother(SmoothingStyle::Linear(1f32)),
+
+            spread_falloff:
+                FloatParam::new(
+                    "Spread Falloff Degree",
+                    0.0,
+                    FloatRange::Linear {
+                        min: 0.0,
+                        max: 0.999
+                    }
+                )
+                .with_smoother(SmoothingStyle::Linear(1f32))
+        }
     }
 }
 
@@ -56,7 +84,8 @@ impl Default for PitchQuantizer {
             convert_fft_buffer,
             process_fft_buffer,
             bucket_freq: (0..WINDOW_SIZE).map(|_| {0f32}).collect(),
-            note_on: (0..128).map(|_| {false}).collect()
+            note_on: (0..128).map(|_| {false}).collect(),
+            window: util::window::hann(WINDOW_SIZE)
         }
     }
 }
@@ -161,36 +190,38 @@ impl Plugin for PitchQuantizer {
         }
 
         // get the frequencies of the input midi.
-        let mut to_round: Vec<f32> = vec![];
+        let mut note_spread_sum: Vec<f32> = (0..WINDOW_SIZE).map(|_| {0f32}).collect();
         for (idx, on) in self.note_on.iter().enumerate() {
-            if *on { to_round.push(midi_note_to_freq(idx as u8)); }
+            if *on {
+                let midi_bucket = closest_bucket_to_freq(midi_note_to_freq(idx as u8), context.transport().sample_rate, WINDOW_SIZE);
+                for (idx2, spread) in bucket_spread(midi_bucket, self.params.note_spread.value(), WINDOW_SIZE as i32, self.params.spread_falloff.value()).iter().enumerate() {
+                    note_spread_sum[idx2] += spread;
+                }
+            }
         }
 
         // audio processing
-        self.stft.process_overlap_add(buffer, 1, |_channel_idx, real_fft_buffer| {
+        self.stft.process_overlap_add(buffer, 1, |_channel_idx, real_fft_buffer: &mut [f32]| {
             // fft from time domain to complex domain.
             self.r2c_plan.process_with_scratch(real_fft_buffer, &mut self.convert_fft_buffer, &mut []).unwrap();
+            // window the input
+            for (sample, window_sample) in real_fft_buffer.iter_mut().zip(&mut self.window) {
+                *sample = *sample * *window_sample;
+            }
 
-            // clear the working buffer.
+            // clear output buffer
             for fft_bin in self.process_fft_buffer.iter_mut() {
                 fft_bin.re = 0f32;
                 fft_bin.im = 0f32;
             }
 
-            for (idx, fft_bin) in self.convert_fft_buffer.iter_mut().enumerate() {
+            for (idx, fft_bin) in self.convert_fft_buffer.iter().enumerate() {
                 let re: f32 = fft_bin.re;
                 let im: f32 = fft_bin.im;
 
-                // get the center frequency of a bucket.
-                let frequency = bucket_to_freq(idx as i32, context.transport().sample_rate, WINDOW_SIZE);
-
-                let round_freq = lazy_upward_round(frequency, &to_round);
-                let bucket: i32 = closest_bucket_to_freq(round_freq, context.transport().sample_rate, WINDOW_SIZE);
-
-                // get the amplitude at a center frequency
-                let amp = amplitude_from_complex(re, im);
                 // move gain compensated amplitude to bucket in working buffer.
-                self.process_fft_buffer[bucket as usize].re += amp * GAIN_COMPENSATION;
+                self.process_fft_buffer[idx as usize].re = re * note_spread_sum[idx as usize];
+                self.process_fft_buffer[idx as usize].im = im * note_spread_sum[idx as usize];
             }
 
             // clear the DC bucket to get rid of subharmonics.
