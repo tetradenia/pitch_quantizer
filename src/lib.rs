@@ -33,6 +33,8 @@ struct PitchQuantizer {
 
 #[derive(Params)]
 struct PitchQuantizerParams {
+    #[id = "pull_strength"]
+    pull_strength: FloatParam,
     #[id = "note_spread"]
     note_spread: FloatParam,
     #[id = "spread_falloff"]
@@ -44,6 +46,16 @@ struct PitchQuantizerParams {
 impl Default for PitchQuantizerParams {
     fn default() -> Self {
         Self {
+            pull_strength:
+                FloatParam::new(
+                    "Pull Strength",
+                    1.0,
+                    FloatRange::Linear {
+                        min: 1.0,
+                        max: 5.0
+                    }
+                )
+                .with_smoother(SmoothingStyle::Linear(1f32)),
             note_spread:
                 FloatParam::new(
                     "Note Spread Degree",
@@ -100,7 +112,7 @@ impl Default for PitchQuantizer {
 impl Plugin for PitchQuantizer {
     // Metadata
     const NAME: &'static str = "Pitch Quantizer";
-    const VENDOR: &'static str = "VENDCO";
+    const VENDOR: &'static str = "VendorCo GmbH Ltd.";
     const URL: &'static str = "URL";
     const EMAIL: &'static str = "EMAIL";
     const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -248,8 +260,9 @@ impl Plugin for PitchQuantizer {
 
                 // move gain compensated amplitude to bucket in working buffer.
                 let bucket_shift = (note_spread_sum[(idx+1).min(note_spread_sum.len() - 1)] - note_spread_sum[idx]).floor() as isize;
-                self.process_fft_buffer[(bucket_shift + idx as isize).min(WINDOW_SIZE as isize - 1).max(0) as usize].re += re * note_spread_sum[idx as usize] * GAIN_COMPENSATION;
-                self.process_fft_buffer[(bucket_shift + idx as isize).min(WINDOW_SIZE as isize - 1).max(0) as usize].im += im * note_spread_sum[idx as usize] * GAIN_COMPENSATION;
+                let modbucket = (bucket_shift as f32 * self.params.pull_strength.value()).floor() as isize;
+                self.process_fft_buffer[(modbucket + idx as isize).min(WINDOW_SIZE as isize - 1).max(0) as usize].re += re * note_spread_sum[idx as usize] * GAIN_COMPENSATION;
+                self.process_fft_buffer[(modbucket + idx as isize).min(WINDOW_SIZE as isize - 1).max(0) as usize].im += im * note_spread_sum[idx as usize] * GAIN_COMPENSATION;
             }
 
             // clear the DC bucket to get rid of subharmonics.
